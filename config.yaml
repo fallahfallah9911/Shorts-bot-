@@ -1,11 +1,8 @@
 # ============================================================
-# SHORTS BOT - CONFIG FILE (FINAL)
+# SHORTS BOT - CONFIG FILE
+# Credentials loaded from GitHub Secrets via environment variables
 # ============================================================
 
-
-# ------------------------------------------------------------
-# BOT 1 - SOURCE CHANNELS
-# ------------------------------------------------------------
 source_channels:
   - id: "UCk4Rd9-a002y2wzTIeOq9zQ"
     name: "japn.channel"
@@ -14,92 +11,75 @@ source_channels:
   - id: "UCRPYE7w_6oYDxvpqQ2MR02g"
     name: "or__and_food"
 
-# 1 per run x 4 runs = 4 per day
 shorts_per_day: 1
 
-
-# ------------------------------------------------------------
-# YOUR MAIN YOUTUBE CHANNEL
-# ------------------------------------------------------------
 main_channel:
   channel_id: "UCqsyePuDbG_GdWgr38CiaBg"
-  client_id: "YOUR_MAIN_CLIENT_ID"
-  client_secret: "YOUR_MAIN_CLIENT_SECRET"
-  refresh_token: "YOUR_MAIN_REFRESH_TOKEN"
+  client_id: "${MAIN_CLIENT_ID}"
+  client_secret: "${MAIN_CLIENT_SECRET}"
+  refresh_token: "${MAIN_REFRESH_TOKEN}"
 
-
-# ------------------------------------------------------------
-# BOT 2 - DESTINATION YOUTUBE ACCOUNTS
-# ------------------------------------------------------------
 youtube_accounts:
   - name: "Ytfall1"
     channel_id: "UCvGfvmbe4hLs_56Uq0jNTWg"
-    client_id: "YOUR_YTFALL1_CLIENT_ID"
-    client_secret: "YOUR_YTFALL1_CLIENT_SECRET"
-    refresh_token: "YOUR_YTFALL1_REFRESH_TOKEN"
+    client_id: "${YT1_CLIENT_ID}"
+    client_secret: "${YT1_CLIENT_SECRET}"
+    refresh_token: "${YT1_REFRESH_TOKEN}"
     shorts_per_day: 1
 
   - name: "Ytfall2"
     channel_id: "UCB8iKg-jfS8Wq3YOwMn001A"
-    client_id: "YOUR_YTFALL2_CLIENT_ID"
-    client_secret: "YOUR_YTFALL2_CLIENT_SECRET"
-    refresh_token: "YOUR_YTFALL2_REFRESH_TOKEN"
+    client_id: "${YT2_CLIENT_ID}"
+    client_secret: "${YT2_CLIENT_SECRET}"
+    refresh_token: "${YT2_REFRESH_TOKEN}"
     shorts_per_day: 1
 
   - name: "Ytfall3"
     channel_id: "UCqrFyTdlL4bXF4fk-8JNIqQ"
-    client_id: "YOUR_YTFALL3_CLIENT_ID"
-    client_secret: "YOUR_YTFALL3_CLIENT_SECRET"
-    refresh_token: "YOUR_YTFALL3_REFRESH_TOKEN"
+    client_id: "${YT3_CLIENT_ID}"
+    client_secret: "${YT3_CLIENT_SECRET}"
+    refresh_token: "${YT3_REFRESH_TOKEN}"
     shorts_per_day: 1
 
   - name: "Ytfall4"
     channel_id: "UCQ15QUccIcKi-ecC2OyO7Ow"
-    client_id: "YOUR_YTFALL4_CLIENT_ID"
-    client_secret: "YOUR_YTFALL4_CLIENT_SECRET"
-    refresh_token: "YOUR_YTFALL4_REFRESH_TOKEN"
+    client_id: "${YT4_CLIENT_ID}"
+    client_secret: "${YT4_CLIENT_SECRET}"
+    refresh_token: "${YT4_REFRESH_TOKEN}"
     shorts_per_day: 1
 
   - name: "Ytfall5"
     channel_id: "UC9nx9_nFwP4ivbGT2GdaC7Q"
-    client_id: "YOUR_YTFALL5_CLIENT_ID"
-    client_secret: "YOUR_YTFALL5_CLIENT_SECRET"
-    refresh_token: "YOUR_YTFALL5_REFRESH_TOKEN"
+    client_id: "${YT5_CLIENT_ID}"
+    client_secret: "${YT5_CLIENT_SECRET}"
+    refresh_token: "${YT5_REFRESH_TOKEN}"
     shorts_per_day: 1
 
-
-# ------------------------------------------------------------
-# BOT 2 - DESTINATION INSTAGRAM ACCOUNTS
-# ------------------------------------------------------------
 instagram_accounts:
   - name: "japanese_foodhouse"
     username: "japanese_foodhouse"
-    password: "YOUR_IG_PASSWORD"
+    password: "${IG1_PASSWORD}"
     reels_per_day: 1
 
   - name: "tokyo.food.daily"
     username: "tokyo.food.daily"
-    password: "YOUR_IG_PASSWORD"
+    password: "${IG2_PASSWORD}"
     reels_per_day: 1
 
   - name: "street.food.reelss"
     username: "street.food.reelss"
-    password: "YOUR_IG_PASSWORD"
+    password: "${IG3_PASSWORD}"
     reels_per_day: 1
 
   - name: "asian.food.hub"
     username: "asian.food.hub"
-    password: "YOUR_IG_PASSWORD"
+    password: "${IG4_PASSWORD}"
     reels_per_day: 1
 
   - name: "viral.food.clips"
     username: "viral.food.clips"
-    password: "YOUR_IG_PASSWORD"
+    password: "${IG5_PASSWORD}"
     reels_per_day: 1
 
-
-# ------------------------------------------------------------
-# SCHEDULE SETTINGS
-# ------------------------------------------------------------
 check_interval_hours: 6
 upload_delay_seconds: 30
