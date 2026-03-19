@@ -1,11 +1,13 @@
 """
-BOT 2 - REPOST BOT (FINAL VERSION)
+BOT 2 - REPOST BOT (FIXED VERSION)
 ------------------------------------
 1. Detects new Shorts on your main YouTube channel
 2. Downloads them
 3. Reposts to all 5 YouTube accounts
 4. Reposts to all 5 Instagram accounts as Reels
-5. If no new video found → reposts a random old one
+5. If no new video on main channel:
+   → Falls back to source channels for unposted videos
+   → If source channels have nothing new → uses archive
 6. Optimized for US audience
 """
 
@@ -27,10 +29,11 @@ from instagrapi.exceptions import LoginRequired
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
-MAIN_CHANNEL  = config["main_channel"]
-YT_ACCOUNTS   = config["youtube_accounts"]
-IG_ACCOUNTS   = config["instagram_accounts"]
-UPLOAD_DELAY  = config["upload_delay_seconds"]
+MAIN_CHANNEL    = config["main_channel"]
+SOURCE_CHANNELS = config["source_channels"]
+YT_ACCOUNTS     = config["youtube_accounts"]
+IG_ACCOUNTS     = config["instagram_accounts"]
+UPLOAD_DELAY    = config["upload_delay_seconds"]
 
 # ── Tracking files ──────────────────────────────────────────
 UPLOADED_LOG = "uploaded_bot2.json"
@@ -56,12 +59,11 @@ def save_archive(archive):
     with open(ARCHIVE_LOG, "w") as f:
         json.dump(archive, f, indent=2)
 
-# ── Get new Shorts from main channel ───────────────────────
-def get_new_shorts_from_main(already_uploaded):
-    channel_id = MAIN_CHANNEL["channel_id"]
+# ── Get Shorts from any channel by ID ──────────────────────
+def get_shorts_from_channel(channel_id, already_uploaded):
     feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
     feed = feedparser.parse(feed_url)
-    new_shorts = []
+    shorts = []
 
     for entry in feed.entries:
         video_id = entry.get("yt_videoid", "")
@@ -72,14 +74,30 @@ def get_new_shorts_from_main(already_uploaded):
             with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True}) as ydl:
                 info = ydl.extract_info(url, download=False)
                 if info.get("duration", 999) <= 60:
-                    new_shorts.append({
+                    shorts.append({
                         "video_id": video_id,
                         "url": url,
                         "title": entry.title
                     })
         except Exception as e:
             print(f"  Skipping {video_id}: {e}")
-    return new_shorts
+    return shorts
+
+# ── Get new Shorts from main channel ───────────────────────
+def get_new_shorts_from_main(already_uploaded):
+    channel_id = MAIN_CHANNEL["channel_id"]
+    return get_shorts_from_channel(channel_id, already_uploaded)
+
+# ── Fallback: get unposted Shorts from source channels ─────
+def get_shorts_from_sources(already_uploaded):
+    shorts = []
+    for channel in SOURCE_CHANNELS:
+        print(f"  🔍 Checking source: {channel['name']}")
+        found = get_shorts_from_channel(channel["id"], already_uploaded)
+        shorts.extend(found)
+        if shorts:
+            break  # Stop after first source that has content
+    return shorts
 
 # ── Download ────────────────────────────────────────────────
 def download_short(url, filename="temp_video.mp4"):
@@ -209,23 +227,37 @@ def run_bot2():
 
     uploaded_log = load_uploaded()
     archive = load_archive()
+    short_to_post = None
 
+    # Step 1: Check main channel for new uploads
     print(f"🔍 Checking main channel for new Shorts...")
     new_shorts = get_new_shorts_from_main(uploaded_log)
 
     if new_shorts:
-        print(f"  Found {len(new_shorts)} new Short(s)!\n")
-        for short in new_shorts:
-            process_short(short, uploaded_log, archive)
+        print(f"  ✅ Found {len(new_shorts)} new Short(s) on main channel!\n")
+        short_to_post = new_shorts[0]
+
+    # Step 2: Fallback to source channels
     else:
-        print("  No new Shorts found!")
-        print("  📦 Falling back to archive...\n")
-        if archive:
-            old_video = random.choice(archive)
-            print(f"  Using archive video: {old_video['title']}")
-            process_short(old_video, uploaded_log, archive)
+        print("  No new Shorts on main channel.")
+        print("\n🔍 Checking source channels for unposted videos...")
+        source_shorts = get_shorts_from_sources(uploaded_log)
+
+        if source_shorts:
+            print(f"  ✅ Found {len(source_shorts)} video(s) from source channels!\n")
+            short_to_post = source_shorts[0]
+
+        # Step 3: Last resort — use archive
         else:
-            print("  ⚠️ No archive videos yet. Nothing to post.")
+            print("  No new videos in source channels either.")
+            if archive:
+                print("\n  📦 Using random archive video as last resort...\n")
+                short_to_post = random.choice(archive)
+            else:
+                print("\n  ⚠️ Archive is also empty. Nothing to post.")
+
+    if short_to_post:
+        process_short(short_to_post, uploaded_log, archive)
 
     print(f"\n========================================")
     print(f"BOT 2 DONE — All accounts updated!")
