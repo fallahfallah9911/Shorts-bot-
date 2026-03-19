@@ -28,10 +28,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            uploaded_bot1.json
-            uploaded_bot2.json
-            archive_bot1.json
-            archive_bot2.json
+            drive_library.json
+            seen_bot0.json
             ig_session_*.json
           key: upload-logs-${{ github.run_id }}
           restore-keys: |
@@ -70,9 +68,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            uploaded_bot1.json
-            uploaded_bot2.json
-            archive_bot1.json
-            archive_bot2.json
+            drive_library.json
+            seen_bot0.json
             ig_session_*.json
           key: upload-logs-${{ github.run_id }}
