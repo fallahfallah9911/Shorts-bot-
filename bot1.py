@@ -1,12 +1,11 @@
 """
-BOT 1 - SOURCE BOT (FINAL VERSION)
+BOT 1 - SOURCE BOT
 ------------------------------------
 1. Reads source channels from config.yaml
 2. Finds new Shorts (ones not uploaded before)
 3. Downloads them
 4. Uploads to your main YouTube channel
 5. If no new Shorts found → uploads a random old one
-6. Optimized for US audience
 """
 
 import os
@@ -27,8 +26,15 @@ with open("config.yaml", "r") as f:
 
 SOURCE_CHANNELS = config["source_channels"]
 SHORTS_PER_DAY  = config["shorts_per_day"]
-MAIN_CHANNEL    = config["main_channel"]
 UPLOAD_DELAY    = config["upload_delay_seconds"]
+
+# ── Main channel credentials from environment variables ────
+MAIN_CHANNEL = {
+    "channel_id":    os.environ.get("MAIN_CHANNEL_ID", "UCqsyePuDbG_GdWgr38CiaBg"),
+    "client_id":     os.environ["MAIN_CLIENT_ID"],
+    "client_secret": os.environ["MAIN_CLIENT_SECRET"],
+    "refresh_token": os.environ["MAIN_REFRESH_TOKEN"],
+}
 
 # ── Tracking files ──────────────────────────────────────────
 UPLOADED_LOG = "uploaded_bot1.json"
@@ -165,7 +171,7 @@ def run_bot1():
         if uploaded_today >= SHORTS_PER_DAY:
             break
 
-        print(f"🔍 Checking: {channel['name']}")
+        print(f"🔍 Checking: {channel['name']} ({channel['id']})")
         shorts = get_shorts_from_channel(channel["id"], already_uploaded)
 
         if not shorts:
@@ -192,7 +198,6 @@ def run_bot1():
                 print(f"  ❌ Error: {e}\n")
                 cleanup()
 
-    # Fallback if no new videos found
     if not found_new and uploaded_today < SHORTS_PER_DAY:
         print("\n⚠️ No new Shorts! Using archive...\n")
         for _ in range(SHORTS_PER_DAY - uploaded_today):
