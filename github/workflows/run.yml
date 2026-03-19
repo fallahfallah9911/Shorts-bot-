@@ -63,6 +63,7 @@ jobs:
           IG3_PASSWORD: ${{ secrets.IG3_PASSWORD }}
           IG4_PASSWORD: ${{ secrets.IG4_PASSWORD }}
           IG5_PASSWORD: ${{ secrets.IG5_PASSWORD }}
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
         run: python main.py
 
       - name: Save upload logs
