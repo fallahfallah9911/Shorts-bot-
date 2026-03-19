@@ -1,15 +1,15 @@
 """
 BOT 1 - SOURCE BOT
-Fetches SHORTS ONLY from source channels via RSS + YouTube API duration check.
-Uploads to main channel as a Short.
+Fetches SHORTS ONLY from source channels via YouTube Data API (not RSS).
+API is near-instant vs RSS which can lag hours.
+Uploads to main channel.
 """
 
-import os, json, time, random, yt_dlp, yaml, feedparser
+import os, json, time, random, yt_dlp, yaml, isodate
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
-import isodate
 
 # ── Config ─────────────────────────────────────────────────
 with open("config.yaml", "r") as f:
@@ -18,8 +18,10 @@ with open("config.yaml", "r") as f:
 SOURCE_CHANNELS = config["source_channels"]
 SHORTS_PER_DAY  = config.get("shorts_per_day", 1)
 UPLOAD_DELAY    = config.get("upload_delay_seconds", 30)
+MAX_RETRIES     = 3
+RETRY_WAIT      = 30
 
-# ── Credentials from GitHub Secrets ───────────────────────
+# ── Credentials ────────────────────────────────────────────
 MAIN_CHANNEL = {
     "channel_id":    os.environ.get("MAIN_CHANNEL_ID", "UCqsyePuDbG_GdWgr38CiaBg"),
     "client_id":     os.environ["MAIN_CLIENT_ID"],
@@ -59,7 +61,37 @@ def get_youtube_client(account):
     creds.refresh(Request())
     return build("youtube", "v3", credentials=creds)
 
-# ── Check if video is a Short (≤ 60 seconds) ──────────────
+# ── Get latest videos from channel via API ─────────────────
+def get_videos_from_api(channel_id, uploaded_ids, yt_client):
+    print(f"  Searching channel via API: {channel_id}")
+    try:
+        resp = yt_client.search().list(
+            part="snippet",
+            channelId=channel_id,
+            order="date",
+            type="video",
+            maxResults=10
+        ).execute()
+
+        videos = []
+        for item in resp.get("items", []):
+            vid = item["id"]["videoId"]
+            if vid in uploaded_ids:
+                print(f"  Already processed: {vid}")
+                continue
+            videos.append({
+                "video_id": vid,
+                "url": f"https://www.youtube.com/watch?v={vid}",
+                "title": item["snippet"]["title"]
+            })
+
+        print(f"  {len(videos)} unprocessed video(s) found")
+        return videos
+    except Exception as e:
+        print(f"  ❌ API search failed: {e}")
+        return []
+
+# ── Check if video is a Short (≤ 120 seconds) ─────────────
 def is_short(video_id, yt_client):
     try:
         resp = yt_client.videos().list(
@@ -78,83 +110,74 @@ def is_short(video_id, yt_client):
         print(f"  ⚠️ Duration check failed: {e}")
         return False
 
-# ── Get videos from RSS ────────────────────────────────────
-def get_videos_from_rss(channel_id, uploaded_ids):
-    url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-    print(f"  Fetching RSS: {url}")
-    try:
-        feed = feedparser.parse(url)
-        if not feed.entries:
-            print(f"  ⚠️ RSS feed empty or unreachable")
-            return []
-        print(f"  RSS returned {len(feed.entries)} entries")
-        videos = []
-        for e in feed.entries:
-            vid = e.get("yt_videoid", "")
-            if not vid:
-                continue
-            if vid in uploaded_ids:
-                print(f"  Already uploaded: {vid}")
-                continue
-            videos.append({
-                "video_id": vid,
-                "url": f"https://www.youtube.com/watch?v={vid}",
-                "title": e.get("title", "Untitled")
-            })
-        print(f"  {len(videos)} unprocessed video(s) found")
-        return videos
-    except Exception as e:
-        print(f"  ❌ RSS fetch failed: {e}")
-        return []
-
-# ── Download ───────────────────────────────────────────────
+# ── Download with retry ────────────────────────────────────
 def download_video(url, filename="temp_video.mp4"):
-    print(f"  Downloading: {url}")
-    ydl_opts = {
-        "outtmpl": filename,
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-        "quiet": False,
-        "no_warnings": False,
-        "merge_output_format": "mp4",
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-    if not os.path.exists(filename):
-        raise FileNotFoundError(f"Download failed - file not found: {filename}")
-    size = os.path.getsize(filename)
-    print(f"  Downloaded: {size} bytes")
+    for attempt in range(1, MAX_RETRIES + 1):
+        print(f"  Downloading (attempt {attempt}/{MAX_RETRIES}): {url}")
+        try:
+            if os.path.exists(filename):
+                os.remove(filename)
+            ydl_opts = {
+                "outtmpl": filename,
+                "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                "quiet": False,
+                "no_warnings": False,
+                "merge_output_format": "mp4",
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+            if not os.path.exists(filename):
+                raise FileNotFoundError("File not found after download")
+            print(f"  Downloaded: {os.path.getsize(filename)} bytes")
+            return True
+        except Exception as e:
+            print(f"  ⚠️ Download attempt {attempt} failed: {e}")
+            if attempt < MAX_RETRIES:
+                print(f"  Retrying in {RETRY_WAIT}s...")
+                time.sleep(RETRY_WAIT)
+    print(f"  ❌ FAILED after {MAX_RETRIES} attempts — Download: {url}")
+    return False
 
-# ── Upload to main channel ─────────────────────────────────
+# ── Upload to main channel with retry ─────────────────────
 def upload_to_main(title, filename="temp_video.mp4"):
-    print(f"  Uploading to main channel: {title}")
-    yt = get_youtube_client(MAIN_CHANNEL)
-    body = {
-        "snippet": {
-            "title": title[:100],
-            "description": "🍱 Amazing food content!\n\n#Shorts #Food #Viral #JapaneseFood #AsianFood #Foodie #StreetFood",
-            "categoryId": "22",
-            "tags": ["Shorts", "viral", "food", "japanesefood", "asianfood", "foodie", "streetfood"],
-            "defaultLanguage": "en",
-            "defaultAudioLanguage": "en"
-        },
-        "status": {
-            "privacyStatus": "public",
-            "selfDeclaredMadeForKids": False
-        }
-    }
-    req = yt.videos().insert(
-        part="snippet,status",
-        body=body,
-        media_body=MediaFileUpload(filename, chunksize=-1, resumable=True)
-    )
-    response = None
-    while response is None:
-        status, response = req.next_chunk()
-        if status:
-            print(f"  Upload progress: {int(status.progress() * 100)}%")
-    video_id = response.get("id", "unknown")
-    print(f"  ✅ Uploaded: https://youtube.com/watch?v={video_id}")
-    return video_id
+    for attempt in range(1, MAX_RETRIES + 1):
+        print(f"  Uploading to main channel (attempt {attempt}/{MAX_RETRIES}): {title}")
+        try:
+            yt = get_youtube_client(MAIN_CHANNEL)
+            body = {
+                "snippet": {
+                    "title": title[:100],
+                    "description": "🍱 Amazing food content!\n\n#Shorts #Food #Viral #JapaneseFood #AsianFood #Foodie #StreetFood",
+                    "categoryId": "22",
+                    "tags": ["Shorts", "viral", "food", "japanesefood", "asianfood", "foodie", "streetfood"],
+                    "defaultLanguage": "en",
+                    "defaultAudioLanguage": "en"
+                },
+                "status": {
+                    "privacyStatus": "public",
+                    "selfDeclaredMadeForKids": False
+                }
+            }
+            req = yt.videos().insert(
+                part="snippet,status",
+                body=body,
+                media_body=MediaFileUpload(filename, chunksize=-1, resumable=True)
+            )
+            response = None
+            while response is None:
+                status, response = req.next_chunk()
+                if status:
+                    print(f"  Upload progress: {int(status.progress() * 100)}%")
+            video_id = response.get("id", "unknown")
+            print(f"  ✅ Uploaded: https://youtube.com/watch?v={video_id}")
+            return video_id
+        except Exception as e:
+            print(f"  ⚠️ Upload attempt {attempt} failed: {e}")
+            if attempt < MAX_RETRIES:
+                print(f"  Retrying in {RETRY_WAIT}s...")
+                time.sleep(RETRY_WAIT)
+    print(f"  ❌ FAILED after {MAX_RETRIES} attempts — Upload to main channel")
+    return None
 
 # ── Cleanup ────────────────────────────────────────────────
 def cleanup(filename="temp_video.mp4"):
@@ -174,9 +197,7 @@ def run_bot1():
     if isinstance(uploaded, dict):
         uploaded = list(uploaded.keys())
 
-    # Get YT client for duration checks
     yt_client = get_youtube_client(MAIN_CHANNEL)
-
     count = 0
 
     for channel in SOURCE_CHANNELS:
@@ -184,7 +205,7 @@ def run_bot1():
             break
 
         print(f"\n🔍 Checking: {channel['name']} ({channel['id']})")
-        videos = get_videos_from_rss(channel["id"], uploaded)
+        videos = get_videos_from_api(channel["id"], uploaded, yt_client)
 
         if not videos:
             print(f"  No new videos in {channel['name']}\n")
@@ -196,7 +217,7 @@ def run_bot1():
 
             print(f"\n▶ Checking if Short: {video['title']}")
 
-            # Mark as seen regardless so we don't recheck it every run
+            # Mark as seen so we don't recheck every run
             if video["video_id"] not in uploaded:
                 uploaded.append(video["video_id"])
                 save_json(UPLOADED_LOG, uploaded)
@@ -206,21 +227,19 @@ def run_bot1():
                 continue
 
             print(f"  ✅ Confirmed Short! Downloading...")
-            try:
-                download_video(video["url"])
-                upload_to_main(video["title"])
+            if not download_video(video["url"]):
+                continue
 
+            video_id = upload_to_main(video["title"])
+            if video_id:
                 if not any(v["video_id"] == video["video_id"] for v in archive):
                     archive.append(video)
                     save_json(ARCHIVE_LOG, archive)
-
                 count += 1
                 cleanup()
-                print(f"  Waiting {UPLOAD_DELAY}s before next upload...")
+                print(f"  Waiting {UPLOAD_DELAY}s...")
                 time.sleep(UPLOAD_DELAY)
-
-            except Exception as e:
-                print(f"  ❌ Failed: {e}")
+            else:
                 cleanup()
 
     # Fallback to archive
@@ -229,14 +248,10 @@ def run_bot1():
         if archive:
             video = random.choice(archive)
             print(f"  📦 Falling back to archive: {video['title']}")
-            try:
-                download_video(video["url"])
-                upload_to_main(video["title"])
-                count += 1
-                cleanup()
-            except Exception as e:
-                print(f"  ❌ Archive upload failed: {e}")
-                cleanup()
+            if download_video(video["url"]):
+                if upload_to_main(video["title"]):
+                    count += 1
+            cleanup()
         else:
             print("  ⚠️ Archive is also empty. Nothing to post today.")
 
