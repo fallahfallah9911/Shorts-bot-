@@ -1,0 +1,73 @@
+name: Shorts Bot - 4x Daily Run
+
+on:
+  schedule:
+    # Run 4 times daily at US friendly times
+    - cron: '0 8 * * *'   # 8 AM UTC = 3 AM EST
+    - cron: '0 14 * * *'  # 2 PM UTC = 9 AM EST
+    - cron: '0 18 * * *'  # 6 PM UTC = 1 PM EST
+    - cron: '0 23 * * *'  # 11 PM UTC = 6 PM EST
+  workflow_dispatch: # Run manually anytime from GitHub
+
+jobs:
+  run-bots:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore upload logs
+        uses: actions/cache@v3
+        with:
+          path: |
+            uploaded_bot1.json
+            uploaded_bot2.json
+            archive_bot1.json
+            archive_bot2.json
+            ig_session_*.json
+          key: upload-logs-${{ github.run_id }}
+          restore-keys: |
+            upload-logs-
+
+      - name: Run Shorts Bot
+        env:
+          MAIN_CLIENT_ID: ${{ secrets.MAIN_CLIENT_ID }}
+          MAIN_CLIENT_SECRET: ${{ secrets.MAIN_CLIENT_SECRET }}
+          MAIN_REFRESH_TOKEN: ${{ secrets.MAIN_REFRESH_TOKEN }}
+          MAIN_CHANNEL_ID: ${{ secrets.MAIN_CHANNEL_ID }}
+          YT1_CLIENT_ID: ${{ secrets.YT1_CLIENT_ID }}
+          YT1_CLIENT_SECRET: ${{ secrets.YT1_CLIENT_SECRET }}
+          YT1_REFRESH_TOKEN: ${{ secrets.YT1_REFRESH_TOKEN }}
+          YT2_CLIENT_ID: ${{ secrets.YT2_CLIENT_ID }}
+          YT2_CLIENT_SECRET: ${{ secrets.YT2_CLIENT_SECRET }}
+          YT2_REFRESH_TOKEN: ${{ secrets.YT2_REFRESH_TOKEN }}
+          YT3_CLIENT_ID: ${{ secrets.YT3_CLIENT_ID }}
+          YT3_CLIENT_SECRET: ${{ secrets.YT3_CLIENT_SECRET }}
+          YT3_REFRESH_TOKEN: ${{ secrets.YT3_REFRESH_TOKEN }}
+          YT4_CLIENT_ID: ${{ secrets.YT4_CLIENT_ID }}
+          YT4_CLIENT_SECRET: ${{ secrets.YT4_CLIENT_SECRET }}
+          YT4_REFRESH_TOKEN: ${{ secrets.YT4_REFRESH_TOKEN }}
+          YT5_CLIENT_ID: ${{ secrets.YT5_CLIENT_ID }}
+          YT5_CLIENT_SECRET: ${{ secrets.YT5_CLIENT_SECRET }}
+          YT5_REFRESH_TOKEN: ${{ secrets.YT5_REFRESH_TOKEN }}
+        run: python main.py
+
+      - name: Save upload logs
+        uses: actions/cache@v3
+        with:
+          path: |
+            uploaded_bot1.json
+            uploaded_bot2.json
+            archive_bot1.json
+            archive_bot2.json
+            ig_session_*.json
+          key: upload-logs-${{ github.run_id }}
