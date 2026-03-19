@@ -1,11 +1,12 @@
 """
 BOT 2 - REPOST BOT
-Takes Shorts from main channel (or source channels as fallback)
-and reposts to all 5 YouTube accounts and 5 Instagram accounts.
-Includes retry logic and end-of-run verification summary.
+Reads the latest used video from drive_library.json (posted by Bot 1).
+Downloads from Google Drive.
+Reposts to 5 YouTube accounts + 5 Instagram accounts.
+Includes retry logic and verification summary.
 """
 
-import os, json, time, random, yt_dlp, yaml, feedparser, isodate
+import os, json, time, random, yt_dlp, yaml
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.oauth2.credentials import Credentials
@@ -22,10 +23,9 @@ except ImportError:
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
-SOURCE_CHANNELS = config["source_channels"]
-UPLOAD_DELAY    = config.get("upload_delay_seconds", 30)
-MAX_RETRIES     = 3
-RETRY_WAIT      = 30
+UPLOAD_DELAY = config.get("upload_delay_seconds", 30)
+MAX_RETRIES  = 3
+RETRY_WAIT   = 30
 
 # ── Credentials ────────────────────────────────────────────
 MAIN_CHANNEL = {
@@ -59,9 +59,7 @@ for username, secret_key in ig_configs:
         print(f"⚠️ {secret_key} not set — skipping {username}")
 
 # ── Log files ──────────────────────────────────────────────
-UPLOADED_LOG = "uploaded_bot2.json"
-ARCHIVE_LOG  = "archive_bot2.json"
-BOT1_ARCHIVE = "archive_bot1.json"
+LIBRARY_FILE = "drive_library.json"
 
 def load_json(path, default):
     try:
@@ -91,70 +89,29 @@ def get_youtube_client(account):
     creds.refresh(Request())
     return build("youtube", "v3", credentials=creds)
 
-# ── Check if Short ─────────────────────────────────────────
-def is_short(video_id, yt_client):
-    try:
-        resp = yt_client.videos().list(part="contentDetails", id=video_id).execute()
-        items = resp.get("items", [])
-        if not items:
-            return False
-        duration = isodate.parse_duration(items[0]["contentDetails"]["duration"]).total_seconds()
-        print(f"  Duration: {duration}s")
-        return duration <= 120
-    except Exception as e:
-        print(f"  ⚠️ Duration check failed: {e}")
-        return False
-
-# ── Get videos from RSS ────────────────────────────────────
-def get_videos_from_rss(channel_id, uploaded_ids):
-    url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
-    print(f"  Fetching RSS: {url}")
-    try:
-        feed = feedparser.parse(url)
-        if not feed.entries:
-            print(f"  ⚠️ RSS feed empty or unreachable")
-            return []
-        videos = []
-        for e in feed.entries:
-            vid = e.get("yt_videoid", "")
-            if not vid or vid in uploaded_ids:
-                continue
-            videos.append({
-                "video_id": vid,
-                "url": f"https://www.youtube.com/watch?v={vid}",
-                "title": e.get("title", "Untitled")
-            })
-        print(f"  {len(videos)} new video(s) found")
-        return videos
-    except Exception as e:
-        print(f"  ❌ RSS fetch failed: {e}")
-        return []
-
-# ── Download with retry ────────────────────────────────────
-def download_video(url, filename="temp_video.mp4"):
+# ── Download from Drive with retry ────────────────────────
+def download_from_drive(drive_link, title, filename="temp_video.mp4"):
     for attempt in range(1, MAX_RETRIES + 1):
-        print(f"  Downloading (attempt {attempt}/{MAX_RETRIES}): {url}")
+        print(f"  Downloading from Drive (attempt {attempt}/{MAX_RETRIES}): {title}")
         try:
             if os.path.exists(filename):
                 os.remove(filename)
             ydl_opts = {
                 "outtmpl": filename,
-                "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
                 "quiet": False,
-                "merge_output_format": "mp4",
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+                ydl.download([drive_link])
             if not os.path.exists(filename):
                 raise FileNotFoundError("File not found after download")
             print(f"  Downloaded: {os.path.getsize(filename)} bytes")
             return True
         except Exception as e:
-            print(f"  ⚠️ Download attempt {attempt} failed: {e}")
+            print(f"  ⚠️ Drive download attempt {attempt} failed: {e}")
             if attempt < MAX_RETRIES:
                 print(f"  Retrying in {RETRY_WAIT}s...")
                 time.sleep(RETRY_WAIT)
-    print(f"  ❌ FAILED after {MAX_RETRIES} attempts — Download: {url}")
+    print(f"  ❌ FAILED after {MAX_RETRIES} attempts — Drive download: {title}")
     return False
 
 # ── YouTube upload with retry ──────────────────────────────
@@ -267,23 +224,46 @@ def cleanup(filename="temp_video.mp4"):
     if os.path.exists(filename):
         os.remove(filename)
 
-# ── Process one video ──────────────────────────────────────
-def process_video(video, uploaded_log, archive):
-    vid   = video["video_id"]
-    title = video["title"]
-    print(f"\n▶ Processing: {title}")
+# ── Main ───────────────────────────────────────────────────
+def run_bot2():
+    print("\n========================================")
+    print("BOT 2 STARTED — Reposting to All Accounts")
+    print("========================================\n")
 
-    if not download_video(video["url"]):
-        return False
+    library = load_json(LIBRARY_FILE, [])
+
+    if not library:
+        print("⚠️ Drive library is empty. Bot 0 needs to run first.")
+        print("========================================\n")
+        return
+
+    # Find the latest video uploaded to main channel by Bot 1
+    ready = [v for v in library if v.get("used") and v.get("main_channel_video_id") and not v.get("reposted")]
+
+    if not ready:
+        print("⚠️ No videos ready to repost. Waiting for Bot 1 to upload first.")
+        print("========================================\n")
+        return
+
+    video = ready[0]
+    title = video["title"]
+    print(f"\n▶ Reposting: {title}")
+
+    # Download from Drive
+    if not download_from_drive(video["drive_link"], title):
+        cleanup()
+        return
 
     yt_results = {}
     ig_results = {}
 
+    # Upload to all YouTube accounts
     print(f"\n  Uploading to {len(YT_ACCOUNTS)} YouTube accounts...")
     for account in YT_ACCOUNTS:
         yt_results[account["name"]] = upload_to_youtube(account, title)
         time.sleep(UPLOAD_DELAY)
 
+    # Upload to all Instagram accounts
     if IG_ACCOUNTS:
         print(f"\n  Uploading to {len(IG_ACCOUNTS)} Instagram accounts...")
         for account in IG_ACCOUNTS:
@@ -292,17 +272,20 @@ def process_video(video, uploaded_log, archive):
     else:
         print("\n  ⚠️ No Instagram accounts configured")
 
-    uploaded_log[vid] = {"title": title, "url": video["url"]}
-    save_json(UPLOADED_LOG, uploaded_log)
-    if not any(v["video_id"] == vid for v in archive):
-        archive.append(video)
-        save_json(ARCHIVE_LOG, archive)
-
     cleanup()
 
+    # Mark as reposted
+    for v in library:
+        if v["video_id"] == video["video_id"]:
+            v["reposted"] = True
+            break
+    save_json(LIBRARY_FILE, library)
+
+    # Wait before verifying
     print("\n  ⏳ Waiting 60s for platforms to process before verifying...")
     time.sleep(60)
 
+    # Verify
     print("\n  🔍 Verifying uploads...")
     yt_verify = {}
     ig_verify = {}
@@ -313,7 +296,7 @@ def process_video(video, uploaded_log, archive):
     for account in IG_ACCOUNTS:
         ig_verify[account["name"]] = verify_instagram(account, title) if ig_results.get(account["name"]) else False
 
-    # Print summary
+    # Summary
     print("\n========================================")
     print("📊 UPLOAD SUMMARY")
     print("========================================")
@@ -334,58 +317,6 @@ def process_video(video, uploaded_log, archive):
             print(f"  ❌ Instagram - {name}: FAILED to upload")
 
     print("========================================\n")
-    return any(yt_results.values())
-
-# ── Main ───────────────────────────────────────────────────
-def run_bot2():
-    print("\n========================================")
-    print("BOT 2 STARTED — Reposting Shorts")
-    print("========================================\n")
-
-    uploaded_log  = load_json(UPLOADED_LOG, {})
-    archive       = load_json(ARCHIVE_LOG, [])
-    bot1_archive  = load_json(BOT1_ARCHIVE, [])
-    yt_client     = get_youtube_client(MAIN_CHANNEL)
-    video_to_post = None
-
-    # Step 1: Main channel RSS
-    print("🔍 Step 1: Checking main channel RSS...")
-    for v in get_videos_from_rss(MAIN_CHANNEL["channel_id"], uploaded_log):
-        if is_short(v["video_id"], yt_client):
-            video_to_post = v
-            print(f"  ✅ Found Short on main channel: {v['title']}")
-            break
-        print(f"  ⏭️ Not a Short, skipping: {v['title']}")
-
-    # Step 2: Source channels
-    if not video_to_post:
-        print("\n🔍 Step 2: Checking source channels...")
-        for channel in SOURCE_CHANNELS:
-            print(f"  Checking {channel['name']}...")
-            for v in get_videos_from_rss(channel["id"], uploaded_log):
-                if is_short(v["video_id"], yt_client):
-                    video_to_post = v
-                    print(f"  ✅ Found Short in {channel['name']}: {v['title']}")
-                    break
-            if video_to_post:
-                break
-
-    # Step 3: Bot2 archive
-    if not video_to_post and archive:
-        print("\n📦 Step 3: Using bot2 archive...")
-        video_to_post = random.choice(archive)
-        print(f"  Using: {video_to_post['title']}")
-
-    # Step 4: Bot1 archive
-    if not video_to_post and bot1_archive:
-        print("\n📦 Step 4: Using bot1 archive...")
-        video_to_post = random.choice(bot1_archive)
-        print(f"  Using: {video_to_post['title']}")
-
-    if not video_to_post:
-        print("\n⚠️ No Shorts found anywhere. Nothing to post today.")
-    else:
-        process_video(video_to_post, uploaded_log, archive)
 
     print("\n========================================")
     print("BOT 2 DONE!")

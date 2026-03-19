@@ -1,8 +1,9 @@
 """
-BOT 1 - SOURCE BOT
-Fetches SHORTS ONLY from source channels via YouTube Data API (not RSS).
-API is near-instant vs RSS which can lag hours.
-Uploads to main channel.
+BOT 1 - MAIN CHANNEL BOT
+Reads from drive_library.json (built by Bot 0).
+Downloads video from Google Drive.
+Uploads to main YouTube channel.
+Marks video as used.
 """
 
 import os, json, time, random, yt_dlp, yaml, isodate
@@ -15,11 +16,9 @@ from google.auth.transport.requests import Request
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
-SOURCE_CHANNELS = config["source_channels"]
-SHORTS_PER_DAY  = config.get("shorts_per_day", 1)
-UPLOAD_DELAY    = config.get("upload_delay_seconds", 30)
-MAX_RETRIES     = 3
-RETRY_WAIT      = 30
+UPLOAD_DELAY = config.get("upload_delay_seconds", 30)
+MAX_RETRIES  = 3
+RETRY_WAIT   = 30
 
 # ── Credentials ────────────────────────────────────────────
 MAIN_CHANNEL = {
@@ -30,8 +29,7 @@ MAIN_CHANNEL = {
 }
 
 # ── Log files ──────────────────────────────────────────────
-UPLOADED_LOG = "uploaded_bot1.json"
-ARCHIVE_LOG  = "archive_bot1.json"
+LIBRARY_FILE = "drive_library.json"
 
 def load_json(path, default):
     try:
@@ -49,93 +47,41 @@ def save_json(path, data):
     except Exception as e:
         print(f"  ⚠️ Could not save {path}: {e}")
 
-# ── YouTube API client ─────────────────────────────────────
-def get_youtube_client(account):
+# ── YouTube client ─────────────────────────────────────────
+def get_youtube_client():
     creds = Credentials(
         token=None,
-        refresh_token=account["refresh_token"],
-        client_id=account["client_id"],
-        client_secret=account["client_secret"],
+        refresh_token=MAIN_CHANNEL["refresh_token"],
+        client_id=MAIN_CHANNEL["client_id"],
+        client_secret=MAIN_CHANNEL["client_secret"],
         token_uri="https://oauth2.googleapis.com/token"
     )
     creds.refresh(Request())
     return build("youtube", "v3", credentials=creds)
 
-# ── Get latest videos from channel via API ─────────────────
-def get_videos_from_api(channel_id, uploaded_ids, yt_client):
-    print(f"  Searching channel via API: {channel_id}")
-    try:
-        resp = yt_client.search().list(
-            part="snippet",
-            channelId=channel_id,
-            order="date",
-            type="video",
-            maxResults=10
-        ).execute()
-
-        videos = []
-        for item in resp.get("items", []):
-            vid = item["id"]["videoId"]
-            if vid in uploaded_ids:
-                print(f"  Already processed: {vid}")
-                continue
-            videos.append({
-                "video_id": vid,
-                "url": f"https://www.youtube.com/watch?v={vid}",
-                "title": item["snippet"]["title"]
-            })
-
-        print(f"  {len(videos)} unprocessed video(s) found")
-        return videos
-    except Exception as e:
-        print(f"  ❌ API search failed: {e}")
-        return []
-
-# ── Check if video is a Short (≤ 120 seconds) ─────────────
-def is_short(video_id, yt_client):
-    try:
-        resp = yt_client.videos().list(
-            part="contentDetails",
-            id=video_id
-        ).execute()
-        items = resp.get("items", [])
-        if not items:
-            print(f"  ⚠️ No data found for {video_id}")
-            return False
-        duration_str = items[0]["contentDetails"]["duration"]
-        duration = isodate.parse_duration(duration_str).total_seconds()
-        print(f"  Duration: {duration}s")
-        return duration <= 120
-    except Exception as e:
-        print(f"  ⚠️ Duration check failed: {e}")
-        return False
-
-# ── Download with retry ────────────────────────────────────
-def download_video(url, filename="temp_video.mp4"):
+# ── Download from Drive link with retry ───────────────────
+def download_from_drive(drive_link, title, filename="temp_video.mp4"):
     for attempt in range(1, MAX_RETRIES + 1):
-        print(f"  Downloading (attempt {attempt}/{MAX_RETRIES}): {url}")
+        print(f"  Downloading from Drive (attempt {attempt}/{MAX_RETRIES}): {title}")
         try:
             if os.path.exists(filename):
                 os.remove(filename)
             ydl_opts = {
                 "outtmpl": filename,
-                "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
                 "quiet": False,
-                "no_warnings": False,
-                "merge_output_format": "mp4",
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+                ydl.download([drive_link])
             if not os.path.exists(filename):
                 raise FileNotFoundError("File not found after download")
             print(f"  Downloaded: {os.path.getsize(filename)} bytes")
             return True
         except Exception as e:
-            print(f"  ⚠️ Download attempt {attempt} failed: {e}")
+            print(f"  ⚠️ Drive download attempt {attempt} failed: {e}")
             if attempt < MAX_RETRIES:
                 print(f"  Retrying in {RETRY_WAIT}s...")
                 time.sleep(RETRY_WAIT)
-    print(f"  ❌ FAILED after {MAX_RETRIES} attempts — Download: {url}")
+    print(f"  ❌ FAILED after {MAX_RETRIES} attempts — Drive download: {title}")
     return False
 
 # ── Upload to main channel with retry ─────────────────────
@@ -143,7 +89,7 @@ def upload_to_main(title, filename="temp_video.mp4"):
     for attempt in range(1, MAX_RETRIES + 1):
         print(f"  Uploading to main channel (attempt {attempt}/{MAX_RETRIES}): {title}")
         try:
-            yt = get_youtube_client(MAIN_CHANNEL)
+            yt = get_youtube_client()
             body = {
                 "snippet": {
                     "title": title[:100],
@@ -188,75 +134,53 @@ def cleanup(filename="temp_video.mp4"):
 # ── Main ───────────────────────────────────────────────────
 def run_bot1():
     print("\n========================================")
-    print("BOT 1 STARTED — Sourcing Shorts")
+    print("BOT 1 STARTED — Uploading to Main Channel")
     print("========================================\n")
 
-    uploaded = load_json(UPLOADED_LOG, [])
-    archive  = load_json(ARCHIVE_LOG, [])
+    library = load_json(LIBRARY_FILE, [])
 
-    if isinstance(uploaded, dict):
-        uploaded = list(uploaded.keys())
+    if not library:
+        print("⚠️ Drive library is empty. Bot 0 needs to run first.")
+        print("========================================\n")
+        return
 
-    yt_client = get_youtube_client(MAIN_CHANNEL)
-    count = 0
+    # Get unused videos
+    unused = [v for v in library if not v.get("used")]
+    print(f"  {len(unused)} unused video(s) in library")
 
-    for channel in SOURCE_CHANNELS:
-        if count >= SHORTS_PER_DAY:
-            break
+    if not unused:
+        print("⚠️ No unused videos left in library. Waiting for Bot 0 to refresh.")
+        print("========================================\n")
+        return
 
-        print(f"\n🔍 Checking: {channel['name']} ({channel['id']})")
-        videos = get_videos_from_api(channel["id"], uploaded, yt_client)
+    # Pick the oldest unused video (first in list)
+    video = unused[0]
+    print(f"\n▶ Selected: {video['title']}")
 
-        if not videos:
-            print(f"  No new videos in {channel['name']}\n")
-            continue
+    # Download from Drive
+    if not download_from_drive(video["drive_link"], video["title"]):
+        cleanup()
+        print("========================================\n")
+        return
 
-        for video in videos:
-            if count >= SHORTS_PER_DAY:
+    # Upload to main channel
+    uploaded_id = upload_to_main(video["title"])
+    cleanup()
+
+    if uploaded_id:
+        # Mark as used and save the uploaded YT video ID for bot2
+        for v in library:
+            if v["video_id"] == video["video_id"]:
+                v["used"] = True
+                v["main_channel_video_id"] = uploaded_id
                 break
-
-            print(f"\n▶ Checking if Short: {video['title']}")
-
-            # Mark as seen so we don't recheck every run
-            if video["video_id"] not in uploaded:
-                uploaded.append(video["video_id"])
-                save_json(UPLOADED_LOG, uploaded)
-
-            if not is_short(video["video_id"], yt_client):
-                print(f"  ⏭️ Not a Short, skipping.")
-                continue
-
-            print(f"  ✅ Confirmed Short! Downloading...")
-            if not download_video(video["url"]):
-                continue
-
-            video_id = upload_to_main(video["title"])
-            if video_id:
-                if not any(v["video_id"] == video["video_id"] for v in archive):
-                    archive.append(video)
-                    save_json(ARCHIVE_LOG, archive)
-                count += 1
-                cleanup()
-                print(f"  Waiting {UPLOAD_DELAY}s...")
-                time.sleep(UPLOAD_DELAY)
-            else:
-                cleanup()
-
-    # Fallback to archive
-    if count == 0:
-        print("\n⚠️ No new Shorts found in source channels.")
-        if archive:
-            video = random.choice(archive)
-            print(f"  📦 Falling back to archive: {video['title']}")
-            if download_video(video["url"]):
-                if upload_to_main(video["title"]):
-                    count += 1
-            cleanup()
-        else:
-            print("  ⚠️ Archive is also empty. Nothing to post today.")
+        save_json(LIBRARY_FILE, library)
+        print(f"\n  ✅ Marked as used in library")
+    else:
+        print(f"\n  ❌ Upload failed, video stays in library for retry")
 
     print(f"\n========================================")
-    print(f"BOT 1 DONE — Uploaded {count} Short(s)")
+    print(f"BOT 1 DONE")
     print(f"========================================\n")
 
 if __name__ == "__main__":
