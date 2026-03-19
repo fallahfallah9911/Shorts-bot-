@@ -1,0 +1,49 @@
+source_channels:
+  - id: "UCk4Rd9-a002y2wzTIeOq9zQ"
+    name: "japn.channel"
+  - id: "UC2TovL8uv6fCPrLdzoQbtUQ"
+    name: "asianfoodtotaste"
+  - id: "UCRPYE7w_6oYDxvpqQ2MR02g"
+    name: "or__and_food"
+
+shorts_per_day: 1
+
+main_channel:
+  channel_id: "UCqsyePuDbG_GdWgr38CiaBg"
+
+youtube_accounts:
+  - name: "Ytfall1"
+    channel_id: "UCvGfvmbe4hLs_56Uq0jNTWg"
+    shorts_per_day: 1
+  - name: "Ytfall2"
+    channel_id: "UCB8iKg-jfS8Wq3YOwMn001A"
+    shorts_per_day: 1
+  - name: "Ytfall3"
+    channel_id: "UCqrFyTdlL4bXF4fk-8JNIqQ"
+    shorts_per_day: 1
+  - name: "Ytfall4"
+    channel_id: "UCQ15QUccIcKi-ecC2OyO7Ow"
+    shorts_per_day: 1
+  - name: "Ytfall5"
+    channel_id: "UC9nx9_nFwP4ivbGT2GdaC7Q"
+    shorts_per_day: 1
+
+instagram_accounts:
+  - name: "japanese_foodhouse"
+    username: "japanese_foodhouse"
+    reels_per_day: 1
+  - name: "tokyo.food.daily"
+    username: "tokyo.food.daily"
+    reels_per_day: 1
+  - name: "street.food.reelss"
+    username: "street.food.reelss"
+    reels_per_day: 1
+  - name: "asian.food.hub"
+    username: "asian.food.hub"
+    reels_per_day: 1
+  - name: "viral.food.clips"
+    username: "viral.food.clips"
+    reels_per_day: 1
+
+check_interval_hours: 6
+upload_delay_seconds: 30
