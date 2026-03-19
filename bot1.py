@@ -73,7 +73,7 @@ def is_short(video_id, yt_client):
         duration_str = items[0]["contentDetails"]["duration"]
         duration = isodate.parse_duration(duration_str).total_seconds()
         print(f"  Duration: {duration}s")
-        return duration <= 60
+        return duration <= 120
     except Exception as e:
         print(f"  ⚠️ Duration check failed: {e}")
         return False
