@@ -1,0 +1,105 @@
+# ============================================================
+# SHORTS BOT - CONFIG FILE (FINAL)
+# ============================================================
+
+
+# ------------------------------------------------------------
+# BOT 1 - SOURCE CHANNELS
+# ------------------------------------------------------------
+source_channels:
+  - id: "UCk4Rd9-a002y2wzTleOq9zQ"
+    name: "japn.channel"
+  - id: "UC2TovL8uv6fCPrLdzoQbtUQ"
+    name: "asianfoodtotaste"
+  - id: "UCRPYE7w_6oYDxvpqQ2MR02g"
+    name: "or__and_food"
+
+# 1 per run x 4 runs = 4 per day
+shorts_per_day: 1
+
+
+# ------------------------------------------------------------
+# YOUR MAIN YOUTUBE CHANNEL
+# ------------------------------------------------------------
+main_channel:
+  channel_id: "UCqsyePuDbG_GdWgr38CiaBg"
+  client_id: "1020470276325-1pndads8ad38kh05letvu e57adrhvps9.apps.googleusercontent.com"
+  client_secret: "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"
+  refresh_token: "1//04o2I0W-xdqtGCgYIARAAGAQSNwF-L9IrIIQ2dSft_mutO617uYyVLAN8UOM14CAQPqUF9N4Uu1u5jpoxR1KdiiAKzI1sn62TQ60"
+
+
+# ------------------------------------------------------------
+# BOT 2 - DESTINATION YOUTUBE ACCOUNTS
+# ------------------------------------------------------------
+youtube_accounts:
+  - name: "Ytfall1"
+    channel_id: "UCvGfvmbe4hLs_56Uq0jNTWg"
+    client_id: "519117577198-vmk326d4o6g0kml6jp3daofltkqfgcs4.apps.googleusercontent.com"
+    client_secret: "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"
+    refresh_token: "1//04ItbyhnzTFPyCgYIARAAGAQSNwF-L9IrlUL98-Mq9rkv006Ko8Kr5X7vRDA7rJb2wjCVwejUF3MNr7UA5rqiw__w7vO1GpkWKAU"
+    shorts_per_day: 1
+
+  - name: "Ytfall2"
+    channel_id: "UCB8iKg-jfS8Wq3YOwMn001A"
+    client_id: "897273448138-lca9gnijjd7a124vj37pc8ivs0uargpu.apps.googleusercontent.com"
+    client_secret: "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"
+    refresh_token: "1//04zHFMy_xT2s8CgYIARAAGAQSNwF-L9IrfK9WbJRmXXWMVwQ3_E9ImfUY8I9RV7RKS9yxaEvQrqqDc-0Z8-Rx90XSkgEqMrrrLu8"
+    shorts_per_day: 1
+
+  - name: "Ytfall3"
+    channel_id: "UCqrFyTdlL4bXF4fk-8JNIqQ"
+    client_id: "972287888131-6455i37ojudk52jh4i6ogrg73hkgpp7n.apps.googleusercontent.com"
+    client_secret: "GOCSPX-Dw0X8p0gd2oxtCibVzPJ3B2-8zk"
+    refresh_token: "1//04MJCf08I_8NJCgYIARAAGAQSNwF-L9IrkDjrvZWO64Fzs1LjFSpqvei3kcKeDaeB1aVa0S3Mb1OSmkHQwgHS5mHeCA0uFxvDKNQ"
+    shorts_per_day: 1
+
+  - name: "Ytfall4"
+    channel_id: "UCQ15QUccIcKi-ecC2OyO7Ow"
+    client_id: "697593369546-vkt9t6f97b3q094iolkaukai0k2r98io.apps.googleusercontent.com"
+    client_secret: "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"
+    refresh_token: "1//04ujd5ibcoR4xCgYIARAAGAQSNwF-L9IrfIIGORYOF2EIF_P7IZe8FY66iytJznBNRekPw3LLJpdoT94kvDLXOFQ5YGoa-wPIO-I"
+    shorts_per_day: 1
+
+  - name: "Ytfall5"
+    channel_id: "UC9nx9_nFwP4ivbGT2GdaC7Q"
+    client_id: "1084205976007-i8f3eomvga61kttoh77khiuki6qmr4gl.apps.googleusercontent.com"
+    client_secret: "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"
+    refresh_token: "1//04RYVhFDdSbp4CgYIARAAGAQSNgF-L9IrpmYusWa7chqh_E5IkhY4ztWi2sM1Ia8l26ToxHM7aIglukGiVLPoBLz9GXw9L32_rA"
+    shorts_per_day: 1
+
+
+# ------------------------------------------------------------
+# BOT 2 - DESTINATION INSTAGRAM ACCOUNTS
+# ------------------------------------------------------------
+instagram_accounts:
+  - name: "japanese_foodhouse"
+    username: "japanese_foodhouse"
+    password: "Fall9911"
+    reels_per_day: 1
+
+  - name: "tokyo.food.daily"
+    username: "tokyo.food.daily"
+    password: "Fall9911"
+    reels_per_day: 1
+
+  - name: "street.food.reelss"
+    username: "street.food.reelss"
+    password: "Fall9911"
+    reels_per_day: 1
+
+  - name: "asian.food.hub"
+    username: "asian.food.hub"
+    password: "Fall9911"
+    reels_per_day: 1
+
+  - name: "viral.food.clips"
+    username: "viral.food.clips"
+    password: "Fall9911"
+    reels_per_day: 1
+
+
+# ------------------------------------------------------------
+# SCHEDULE SETTINGS
+# ------------------------------------------------------------
+check_interval_hours: 6
+upload_delay_seconds: 30
