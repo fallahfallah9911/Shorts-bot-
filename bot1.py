@@ -1,15 +1,18 @@
 """
-BOT 1 - SOURCE BOT
-------------------
+BOT 1 - SOURCE BOT (FINAL VERSION)
+------------------------------------
 1. Reads source channels from config.yaml
 2. Finds new Shorts (ones not uploaded before)
 3. Downloads them
 4. Uploads to your main YouTube channel
+5. If no new Shorts found → uploads a random old one
+6. Optimized for US audience
 """
 
 import os
 import json
 import time
+import random
 import yt_dlp
 import yaml
 import feedparser
@@ -22,13 +25,14 @@ from google.auth.transport.requests import Request
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
-SOURCE_CHANNELS   = config["source_channels"]
-SHORTS_PER_DAY    = config["shorts_per_day"]
-MAIN_CHANNEL      = config["main_channel"]
-UPLOAD_DELAY      = config["upload_delay_seconds"]
+SOURCE_CHANNELS = config["source_channels"]
+SHORTS_PER_DAY  = config["shorts_per_day"]
+MAIN_CHANNEL    = config["main_channel"]
+UPLOAD_DELAY    = config["upload_delay_seconds"]
 
-# ── Tracking file (remembers what's already been uploaded) ──
+# ── Tracking files ──────────────────────────────────────────
 UPLOADED_LOG = "uploaded_bot1.json"
+ARCHIVE_LOG  = "archive_bot1.json"
 
 def load_uploaded():
     if os.path.exists(UPLOADED_LOG):
@@ -40,6 +44,16 @@ def save_uploaded(uploaded):
     with open(UPLOADED_LOG, "w") as f:
         json.dump(uploaded, f, indent=2)
 
+def load_archive():
+    if os.path.exists(ARCHIVE_LOG):
+        with open(ARCHIVE_LOG, "r") as f:
+            return json.load(f)
+    return []
+
+def save_archive(archive):
+    with open(ARCHIVE_LOG, "w") as f:
+        json.dump(archive, f, indent=2)
+
 # ── Get Shorts from a channel's RSS feed ───────────────────
 def get_shorts_from_channel(channel_id, already_uploaded):
     feed_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
@@ -48,18 +62,13 @@ def get_shorts_from_channel(channel_id, already_uploaded):
 
     for entry in feed.entries:
         video_id = entry.get("yt_videoid", "")
-        if not video_id:
+        if not video_id or video_id in already_uploaded:
             continue
-        if video_id in already_uploaded:
-            continue
-
-        # Check if it's a Short by trying to detect duration via yt-dlp
         url = f"https://www.youtube.com/shorts/{video_id}"
         try:
             with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True}) as ydl:
                 info = ydl.extract_info(url, download=False)
-                duration = info.get("duration", 999)
-                if duration <= 60:  # Shorts are 60 seconds or less
+                if info.get("duration", 999) <= 60:
                     shorts.append({
                         "video_id": video_id,
                         "url": url,
@@ -67,23 +76,16 @@ def get_shorts_from_channel(channel_id, already_uploaded):
                     })
         except Exception as e:
             print(f"  Skipping {video_id}: {e}")
-            continue
-
     return shorts
 
-# ── Download a Short ────────────────────────────────────────
+# ── Download ────────────────────────────────────────────────
 def download_short(url, filename="temp_video.mp4"):
     print(f"  Downloading: {url}")
-    ydl_opts = {
-        "outtmpl": filename,
-        "format": "mp4",
-        "quiet": True
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    with yt_dlp.YoutubeDL({"outtmpl": filename, "format": "mp4", "quiet": True}) as ydl:
         ydl.download([url])
     print(f"  Downloaded!")
 
-# ── Build YouTube API client ────────────────────────────────
+# ── YouTube client ──────────────────────────────────────────
 def get_youtube_client(account):
     creds = Credentials(
         token=None,
@@ -99,85 +101,107 @@ def get_youtube_client(account):
 def upload_to_main(title, filename="temp_video.mp4"):
     print(f"  Uploading to main channel: {title}")
     youtube = get_youtube_client(MAIN_CHANNEL)
-
+    tags = ["Shorts", "viral", "trending", "food", "japanesefood",
+            "asianfood", "foodie", "foodreels", "streetfood", "yummy",
+            "foodvideo", "viralreels", "shortsvideo"]
     body = {
         "snippet": {
             "title": title,
-            "description": "Auto uploaded",
+            "description": "🍱 Amazing food content!\n\n#Shorts #Food #Viral #JapaneseFood #AsianFood #Foodie #FoodReels #StreetFood",
             "categoryId": "22",
-            "tags": ["Shorts", "viral", "trending"]
+            "tags": tags,
+            "defaultLanguage": "en",
+            "defaultAudioLanguage": "en"
         },
-        "status": {
-            "privacyStatus": "public",
-            "selfDeclaredMadeForKids": False
-        }
+        "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False}
     }
-
     request = youtube.videos().insert(
         part="snippet,status",
         body=body,
         media_body=MediaFileUpload(filename, chunksize=-1, resumable=True)
     )
-
     response = None
     while response is None:
         status, response = request.next_chunk()
         if status:
             print(f"  Upload progress: {int(status.progress() * 100)}%")
+    print(f"  ✅ Uploaded! https://youtube.com/shorts/{response.get('id')}")
 
-    video_id = response.get("id")
-    print(f"  ✅ Uploaded! https://youtube.com/shorts/{video_id}")
-    return video_id
-
-# ── Clean up downloaded file ────────────────────────────────
+# ── Cleanup ─────────────────────────────────────────────────
 def cleanup(filename="temp_video.mp4"):
     if os.path.exists(filename):
         os.remove(filename)
 
-# ── Main Bot 1 Logic ────────────────────────────────────────
+# ── Fallback: upload random old video ──────────────────────
+def upload_old_video():
+    archive = load_archive()
+    if not archive:
+        print("  ⚠️ No archive videos yet. Skipping.")
+        return False
+    old_video = random.choice(archive)
+    print(f"  📦 Using archive video: {old_video['title']}")
+    try:
+        download_short(old_video["url"])
+        upload_to_main(old_video["title"])
+        cleanup()
+        return True
+    except Exception as e:
+        print(f"  ❌ Archive upload failed: {e}")
+        cleanup()
+        return False
+
+# ── Main ────────────────────────────────────────────────────
 def run_bot1():
     print("\n========================================")
     print("BOT 1 STARTED — Sourcing Shorts")
     print("========================================\n")
 
     already_uploaded = load_uploaded()
+    archive = load_archive()
     uploaded_today = 0
+    found_new = False
 
     for channel in SOURCE_CHANNELS:
         if uploaded_today >= SHORTS_PER_DAY:
-            print(f"✅ Daily limit of {SHORTS_PER_DAY} Shorts reached. Stopping.")
             break
 
-        print(f"🔍 Checking channel: {channel['name']} ({channel['id']})")
+        print(f"🔍 Checking: {channel['name']}")
         shorts = get_shorts_from_channel(channel["id"], already_uploaded)
 
         if not shorts:
-            print(f"  No new Shorts found.\n")
+            print(f"  No new Shorts.\n")
             continue
 
-        print(f"  Found {len(shorts)} new Short(s)\n")
-
+        found_new = True
         for short in shorts:
             if uploaded_today >= SHORTS_PER_DAY:
                 break
-
             print(f"▶ Processing: {short['title']}")
             try:
                 download_short(short["url"])
                 upload_to_main(short["title"])
                 already_uploaded.append(short["video_id"])
                 save_uploaded(already_uploaded)
+                if not any(v["video_id"] == short["video_id"] for v in archive):
+                    archive.append(short)
+                    save_archive(archive)
                 uploaded_today += 1
                 cleanup()
-                print(f"  Waiting {UPLOAD_DELAY}s before next upload...\n")
                 time.sleep(UPLOAD_DELAY)
             except Exception as e:
-                print(f"  ❌ Error processing {short['title']}: {e}\n")
+                print(f"  ❌ Error: {e}\n")
                 cleanup()
-                continue
+
+    # Fallback if no new videos found
+    if not found_new and uploaded_today < SHORTS_PER_DAY:
+        print("\n⚠️ No new Shorts! Using archive...\n")
+        for _ in range(SHORTS_PER_DAY - uploaded_today):
+            if upload_old_video():
+                uploaded_today += 1
+            time.sleep(UPLOAD_DELAY)
 
     print(f"\n========================================")
-    print(f"BOT 1 DONE — Uploaded {uploaded_today} Short(s) today")
+    print(f"BOT 1 DONE — Uploaded {uploaded_today} Short(s)")
     print(f"========================================\n")
 
 if __name__ == "__main__":
