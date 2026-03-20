@@ -1,20 +1,30 @@
 """
 MAIN - Entry point
-Runs Bot 0 (every 2 days), then Bot 1, then Bot 2.
+Runs Bot 0 (every 2 days or if library is empty), then Bot 1, then Bot 2.
 """
 import time
 import traceback
+import os
+import json
 from datetime import datetime
 
 print("\n🚀 SHORTS BOT SYSTEM STARTING...\n")
 print(f"  Run time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n")
 
-# Run Bot 0 every 2 days based on day of year
+# Run Bot 0 every 2 days OR if library is empty
 day_of_year = datetime.utcnow().timetuple().tm_yday
-run_bot0 = True
+try:
+    library_empty = not os.path.exists("drive_library.json") or json.load(open("drive_library.json")) == []
+except:
+    library_empty = True
+
+run_bot0 = (day_of_year % 2 == 0) or library_empty
 
 if run_bot0:
-    print("📦 Today is a Bot 0 day — refreshing Drive library...\n")
+    if library_empty:
+        print("📦 Drive library is empty — forcing Bot 0 to run...\n")
+    else:
+        print("📦 Today is a Bot 0 day — refreshing Drive library...\n")
     try:
         from bot0 import run_bot0 as execute_bot0
         execute_bot0()
