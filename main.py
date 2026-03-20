@@ -11,7 +11,7 @@ print(f"  Run time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n")
 
 # Run Bot 0 every 2 days based on day of year
 day_of_year = datetime.utcnow().timetuple().tm_yday
-run_bot0 = (day_of_year % 2 == 0)
+run_bot0 = True
 
 if run_bot0:
     print("📦 Today is a Bot 0 day — refreshing Drive library...\n")
