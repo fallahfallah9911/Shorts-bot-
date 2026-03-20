@@ -142,7 +142,7 @@ def get_all_videos_from_channel(channel_id, seen_ids, yt_client):
     print(f"  Found {len(videos)} unseen video(s)")
     return videos
 
-# ── Download at highest quality ────────────────────────────
+# ── Download video ─────────────────────────────────────────
 def download_video(video_id, filename="temp_video.mp4"):
     url = f"https://www.youtube.com/shorts/{video_id}"
     for attempt in range(1, MAX_RETRIES + 1):
@@ -154,8 +154,23 @@ def download_video(video_id, filename="temp_video.mp4"):
                 "outtmpl": filename,
                 "format": "best[ext=mp4]/best",
                 "quiet": False,
-                "merge_output_format": "mp4",
-                "extractor_args": {"youtube": {"player_client": ["android"]}},
+                "no_warnings": False,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["ios", "android", "web"],
+                    }
+                },
+                "http_headers": {
+                    "User-Agent": "com.google.ios.youtube/19.29.1 CFNetwork/1474 Darwin/23.0.0",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+                "socket_timeout": 30,
+                "retries": 10,
+                "fragment_retries": 10,
+                "retry_sleep_functions": {"http": lambda n: 5 * n},
+                "ignoreerrors": False,
+                "nocheckcertificate": True,
+                "geo_bypass": True,
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
