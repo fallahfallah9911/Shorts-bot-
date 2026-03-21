@@ -1,14 +1,4 @@
 # SHORTS BOT CONFIG
 # Credentials come from GitHub Secrets - do not put them here
 
-source_channels:
-  - id: "UCk4Rd9-a002y2wzTIeOq9zQ"
-    name: "japn.channel"
-  - id: "UC2MIApORbfgkXNVLW0oTJtA"
-    name: "asianfoodtotaste"
-  - id: "UCRPYE7w_6oYDxvpqQ2MR02g"
-    name: "or__and_food"
-
-shorts_per_day: 1
 upload_delay_seconds: 30
-check_interval_hours: 6

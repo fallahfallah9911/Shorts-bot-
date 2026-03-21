@@ -1,40 +1,14 @@
 """
 MAIN - Entry point
-Runs Bot 0 (every 2 days or if library is empty), then Bot 1, then Bot 2.
+Runs Bot 1 (upload to main channel), then Bot 2 (repost to all accounts).
+Videos are manually added to drive_library.json.
 """
 import time
 import traceback
-import os
-import json
 from datetime import datetime
 
 print("\n🚀 SHORTS BOT SYSTEM STARTING...\n")
 print(f"  Run time: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n")
-
-# Run Bot 0 every 2 days OR if library is empty
-day_of_year = datetime.utcnow().timetuple().tm_yday
-try:
-    library_empty = not os.path.exists("drive_library.json") or json.load(open("drive_library.json")) == []
-except:
-    library_empty = True
-
-run_bot0 = (day_of_year % 2 == 0) or library_empty
-
-if run_bot0:
-    if library_empty:
-        print("📦 Drive library is empty — forcing Bot 0 to run...\n")
-    else:
-        print("📦 Today is a Bot 0 day — refreshing Drive library...\n")
-    try:
-        from bot0 import run_bot0 as execute_bot0
-        execute_bot0()
-    except Exception as e:
-        print(f"❌ Bot 0 crashed: {e}")
-        traceback.print_exc()
-    print("\n⏳ Waiting 60s after Bot 0 before running Bot 1...")
-    time.sleep(60)
-else:
-    print("📦 Not a Bot 0 day — skipping Drive refresh.\n")
 
 # Run Bot 1
 try:
