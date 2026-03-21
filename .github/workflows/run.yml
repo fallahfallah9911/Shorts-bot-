@@ -33,7 +33,6 @@ jobs:
         with:
           path: |
             drive_library.json
-            seen_bot0.json
             ig_session_*.json
           key: upload-logs-${{ github.run_id }}
           restore-keys: |
@@ -73,6 +72,5 @@ jobs:
         with:
           path: |
             drive_library.json
-            seen_bot0.json
             ig_session_*.json
           key: upload-logs-${{ github.run_id }}
